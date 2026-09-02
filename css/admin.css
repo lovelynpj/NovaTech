@@ -1,0 +1,155 @@
+/* Administración: navegación lateral, métricas, tablas y tarjetas de promociones. */
+
+/* Estructura general del panel. */
+.admin-page {
+  display: grid;
+  grid-template-columns: 225px 1fr;
+  gap: 25px;
+}
+.admin-side {
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 15px;
+  height: max-content;
+}
+.admin-side h3 {
+  font-size: 14px;
+  margin: 5px 7px 15px;
+}
+.admin-nav {
+  display: grid;
+  gap: 4px;
+}
+.admin-nav button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 10px;
+  border-radius: 8px;
+}
+.admin-nav button.active,
+.admin-nav button:hover {
+  background: var(--card);
+  color: var(--text);
+}
+.admin-content h1 {
+  margin: 0 0 7px;
+  font-size: 30px;
+}
+.stats {
+  grid-template-columns: repeat(4, 1fr);
+  margin: 25px 0;
+}
+.stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 17px;
+}
+.stat span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.stat strong {
+  font-size: 21px;
+  display: block;
+  margin-top: 7px;
+}
+.admin-table-wrap {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 14px;
+  overflow: auto;
+}
+.admin-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.admin-table th {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.status {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgba(78, 211, 154, 0.14);
+  color: var(--success);
+}
+.admin-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 25px 0 14px;
+}
+.login-card {
+  max-width: 420px;
+  margin: 35px auto;
+}
+.admin-login {
+  min-height: 60vh;
+  padding-top: 35px;
+}
+.promo-grid {
+  grid-template-columns: repeat(3, 1fr);
+  margin: 24px 0 40px;
+}
+.promo-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+}
+.promo-card span {
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.promo-card h3 {
+  font-size: 17px;
+  line-height: 1.25;
+  margin: 10px 0;
+}
+.promo-card p {
+  color: var(--muted);
+  font-size: 13px;
+  min-height: 76px;
+}
+@media (max-width: 780px) {
+  .admin-page {
+    grid-template-columns: 1fr;
+    padding-top: 22px;
+  }
+  .admin-side {
+    overflow: auto;
+  }
+  .admin-nav {
+    display: flex;
+    width: max-content;
+  }
+  .stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat {
+    padding: 13px;
+  }
+  .admin-content h1 {
+    font-size: 25px;
+  }
+  .promo-grid {
+    grid-template-columns: 1fr;
+  }
+}

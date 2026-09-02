@@ -1,0 +1,45 @@
+<!-- Punto de entrada de NovaTech: carga la estructura base, estilos y scripts en orden. -->
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="NovaTech — tecnología que mejora tu día."
+    />
+    <title>NovaTech | Tecnología que se siente</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/home.css" />
+    <link rel="stylesheet" href="css/shop.css" />
+    <link rel="stylesheet" href="css/admin.css" />
+    <link rel="stylesheet" href="css/extras.css" />
+  </head>
+  <body>
+    <header class="navbar" id="navbar"></header>
+    <main id="app"></main>
+    <footer id="footer"></footer>
+    <div class="toast-region" id="toast-region" aria-live="polite"></div>
+
+    <!-- URL del backend. Mientras probás en tu computadora, dejala así.
+         Cuando subas el backend a Render, reemplazá esta línea por la URL
+         real, por ejemplo: window.NOVA_API_URL = "https://novatech-backend.onrender.com"; -->
+    <script>
+      window.NOVA_API_URL = "http://localhost:4000";
+    </script>
+
+    <script src="js/api.js?v=1"></script>
+    <script src="js/products.js?v=5"></script>
+    <script src="js/cart.js?v=3"></script>
+    <script src="js/login.js?v=3"></script>
+    <script src="js/orders.js?v=3"></script>
+    <script src="js/admin.js?v=8"></script>
+    <script src="js/app.js?v=10"></script>
+  </body>
+</html>

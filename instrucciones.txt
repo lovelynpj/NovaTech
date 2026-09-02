@@ -1,0 +1,7 @@
+ESTAS SON LAS INSTRUCCIONES POR SI EL SERVIDOR SE LLEGA A APAGAR 
+
+1. iniciar el html en live server 
+2. si este archivo inicia y aparece como que no se pudo conectar al servidor lo que tenes que hacer es basicamente volver a la pagina de avia 
+(https://console.aiven.io/account/a5cfdd4729a5/project/novatech/services/mysql-39b7623d/overview)
+3. fijarse si el servidor aparece como "Powered off ", si es asi tenes que prenderlo clickeando en los 3 botones y hacer "power on " y esperar a que se rebuildee todo
+4. una vez rebuildeado la base de datos del servidor lo que tenes que hacer es colocar un " npm run dev " en la terminal para correr el servidor y luego de eso recargar la pagina para que este en linea de nuevo.
