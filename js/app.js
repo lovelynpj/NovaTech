@@ -119,10 +119,28 @@
               <div class="field"><label>Ciudad</label><input name="city" required placeholder="Ciudad"></div>
               <div class="field"><label>Código postal</label><input name="postalCode" required placeholder="0000"></div>
               <div class="field full"><label>¿Cómo recibís tu compra?</label><select name="deliveryMethod" id="delivery-method"><option value="Retiro">La retiro</option><option value="Envío">Quiero envío</option></select></div>
-              <div class="field full"><label>Método de pago</label><select name="payment" id="payment-method"><option value="Mercado Pago">Mercado Pago</option><option value="Transferencia">Transferencia</option><option value="Efectivo">Efectivo</option></select></div>
+              <div class="field full"><label>Método de pago</label><select name="payment" id="payment-method"><option value="Transferencia">Transferencia</option><option value="Efectivo">Efectivo</option></select></div>
             </div>
             <div class="delivery-details" id="pickup-details"><strong>Retiro a coordinar</strong><p>Nos pondremos en contacto por WhatsApp para definir día, horario y punto de retiro.</p></div>
             <div class="delivery-details hidden" id="shipping-details"><strong>Envío a coordinar</strong><p>Recibimos tu dirección y te contactaremos por WhatsApp para confirmar costo, fecha y seguimiento.</p></div>
+            <div class="payment-details" id="transfer-details">
+              <p class="payment-title">Datos para transferir</p>
+              <div class="transfer-card">
+                <strong>Mercado Pago</strong>
+                <span>Titular: Pedro Jose Pimentel Quiroz</span>
+                <div class="alias-row"><code>pedro.pimentel</code><button type="button" class="copy-alias" data-copy="pedro.pimentel">Copiar</button></div>
+              </div>
+              <div class="transfer-card">
+                <strong>Lemon Cash</strong>
+                <span>Titular: Pedro Jose Pimentel Quiroz</span>
+                <div class="alias-row"><code>pedro.pimentel.lemon</code><button type="button" class="copy-alias" data-copy="pedro.pimentel.lemon">Copiar</button></div>
+              </div>
+              <small class="muted">Una vez hecha la transferencia, mandanos el comprobante por WhatsApp para confirmar tu pedido.</small>
+            </div>
+            <div class="payment-details hidden" id="cash-details">
+              <p class="payment-title">Pago en efectivo</p>
+              <p class="muted" style="font-size:13px;margin:0">Coordinamos el pago al momento de la entrega o retiro. Te contactamos por WhatsApp.</p>
+            </div>
             <button class="btn btn-primary" style="margin-top:20px">Confirmar pedido</button>
           </form>
           <aside class="summary"><h3>Tu pedido</h3>${items.map((p) => `<div class="summary-row"><span>${p.quantity} × ${p.name}</span><span>${money(p.price * p.quantity)}</span></div>`).join("")}<div class="summary-row"><span>Envío</span><span>${shipping ? money(shipping) : "A coordinar"}</span></div><div class="summary-row summary-total"><span>Total estimado</span><span>${money(total)}</span></div></aside>
@@ -158,10 +176,10 @@
     node.innerHTML = "<i>✓</i><div><strong></strong><span></span></div>";
     document.body.append(node);
     const samples = [
-      ["Camila", "Auriculares Pulse Pro"],
-      ["Mateo", "Notebook Air 14"],
-      ["Sofía", "Smartwatch Orbit S2"],
-      ["Tomás", "Parlante Wave 360"],
+      ["Valentino", "Airpods Gen 2 Pro"],
+      ["Mateo", "Vaper Elfbar Ice king 40k puffs"],
+      ["Sofía", "JBL Go 4 "],
+      ["Tomás", "Vaso térmico Cafeteros Stanley"],
     ];
     let index = 0;
     const show = async () => {
@@ -326,8 +344,8 @@
     }
     if (e.target.id === "sort") showProducts();
     if (e.target.id === "payment-method") {
-      // El detalle de transferencia/efectivo se coordina por WhatsApp; no hay
-      // bloques que mostrar/ocultar acá porque ahora el pago principal es Mercado Pago.
+      document.querySelector("#transfer-details").classList.toggle("hidden", e.target.value !== "Transferencia");
+      document.querySelector("#cash-details").classList.toggle("hidden", e.target.value !== "Efectivo");
     }
     if (e.target.id === "delivery-method") {
       document.querySelector("#pickup-details").classList.toggle("hidden", e.target.value !== "Retiro");
@@ -364,30 +382,7 @@
         toast("Tu carrito está vacío", true);
         return;
       }
-      try {
-        if (data.payment === "Mercado Pago") {
-          const order = await createOrder({
-            customer: {
-              name: `${data.firstName} ${data.lastName}`,
-              email: data.email,
-              phone: data.phone,
-              address: data.address,
-              city: data.city,
-              postalCode: data.postalCode,
-            },
-            items,
-            payment: data.payment,
-            deliveryMethod: data.deliveryMethod,
-          });
-          const { checkoutUrl } = await apiFetch("/api/payments/create-preference", {
-            method: "POST",
-            body: JSON.stringify({ orderId: order.id }),
-          });
-          localStorage.removeItem("novatech-cart");
-          window.location.href = checkoutUrl; // Vamos a la página de pago de Mercado Pago.
-          return;
-        }
-
+            try {
         await createOrder({
           customer: {
             name: `${data.firstName} ${data.lastName}`,
