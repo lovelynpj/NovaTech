@@ -1,7 +1,19 @@
 (function () {
   /* Sesión de usuario opcional. Las compras pueden realizarse sin iniciar sesión. */
-  const userLogged = () =>
-    JSON.parse(localStorage.getItem("novatech-user") || "null");
+  // CORREGIDO: mismo problema que en cart.js — un JSON corrupto acá rompía
+  // toda la app porque userLogged() se llama en cada render().
+  function userLogged() {
+    try {
+      const raw = localStorage.getItem("novatech-user");
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || !parsed.email) return null;
+      return parsed;
+    } catch {
+      localStorage.removeItem("novatech-user");
+      return null;
+    }
+  }
   function loginUser(form) {
     const data = Object.fromEntries(new FormData(form));
     localStorage.setItem(
