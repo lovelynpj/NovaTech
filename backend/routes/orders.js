@@ -1,6 +1,8 @@
 const express = require("express");
 const pool = require("../config/db");
 const { requireAdmin } = require("../middleware/auth");
+const { createOrderLimiter } = require("../middleware/rateLimiters");
+const { ValidationError, validateItems, mergeItems, generateOrderId } = require("../utils/orderHelpers");
 
 const router = express.Router();
 
@@ -23,9 +25,26 @@ async function findOrCreateCustomer(connection, customer) {
 // Crea un pedido. Usa una transacción para que el descuento de stock
 // y la creación del pedido sean una sola operación atómica: si algo
 // falla a mitad de camino, no queda stock descontado "en el aire".
-router.post("/", async (req, res) => {
-  const { customer, items, payment, deliveryMethod } = req.body;
-  if (!items?.length) return res.status(400).json({ error: "El carrito está vacío." });
+router.post("/", createOrderLimiter, async (req, res) => {
+  const { customer, items: rawItems, payment, deliveryMethod } = req.body;
+
+  // CORREGIDO: antes solo se chequeaba "items?.length", sin validar que cada
+  // cantidad fuera un entero positivo. Una cantidad negativa (ej: -5) hacía
+  // que "stock = stock - (-5)" SUMARA stock en vez de restarlo. Además, si el
+  // mismo product_id venía repetido más de una vez, se descontaba stock una
+  // vez por cada aparición (podía vaciar stock real con menos unidades
+  // "declaradas"). validateItems + mergeItems arreglan ambos casos.
+  let items;
+  try {
+    items = mergeItems(validateItems(rawItems));
+  } catch (err) {
+    if (err instanceof ValidationError) return res.status(400).json({ error: err.message });
+    throw err;
+  }
+
+  if (!customer || typeof customer !== "object" || !customer.email || !customer.name) {
+    return res.status(400).json({ error: "Faltan datos del cliente." });
+  }
 
   const connection = await pool.getConnection();
   try {
@@ -33,15 +52,17 @@ router.post("/", async (req, res) => {
 
     // 1) Verificamos stock real (server-side) y traemos precio/nombre/imagen
     // vigentes de cada producto. No confiamos en lo que mande el navegador.
+    // Además exigimos que el producto esté activo: un producto desactivado
+    // no debería poder comprarse aunque alguien arme el request a mano.
     const productData = new Map();
     for (const item of items) {
       const [rows] = await connection.query(
-        "SELECT price, name, image, stock FROM products WHERE id = ? FOR UPDATE",
+        "SELECT price, name, image, stock FROM products WHERE id = ? AND active = TRUE FOR UPDATE",
         [item.id]
       );
       const product = rows[0];
       if (!product || product.stock < item.quantity) {
-        throw new Error(`Sin stock suficiente para el producto ${item.id}.`);
+        throw new ValidationError(`Sin stock suficiente para el producto ${item.id}.`);
       }
       productData.set(item.id, product);
     }
@@ -49,7 +70,7 @@ router.post("/", async (req, res) => {
     const subtotal = items.reduce((sum, item) => sum + productData.get(item.id).price * item.quantity, 0);
     const shipping = 0;
     const customerId = await findOrCreateCustomer(connection, customer);
-    const orderId = `NT-${Date.now().toString().slice(-6)}`;
+    const orderId = generateOrderId();
 
     // 2) Insertamos la orden PRIMERO: order_items tiene una foreign key hacia
     // orders.id, así que la orden tiene que existir antes de insertar sus items.
@@ -58,7 +79,8 @@ router.post("/", async (req, res) => {
       [orderId, customerId, subtotal, shipping, subtotal + shipping, payment, deliveryMethod]
     );
 
-    // 3) Recién ahora insertamos los items y descontamos stock.
+    // 3) Recién ahora insertamos los items (ya fusionados: un solo renglón
+    // por producto, con la cantidad total real) y descontamos stock UNA vez.
     for (const item of items) {
       const product = productData.get(item.id);
       await connection.query(
@@ -74,7 +96,15 @@ router.post("/", async (req, res) => {
     res.json({ id: orderId, total: subtotal + shipping });
   } catch (err) {
     await connection.rollback();
-    res.status(400).json({ error: err.message });
+    // No devolvemos err.message tal cual si no es un error "esperado"
+    // (ValidationError o falta de stock): un error inesperado de MySQL
+    // podría filtrar detalles internos del servidor al cliente.
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: err.message });
+    } else {
+      console.error("Error creando pedido:", err);
+      res.status(500).json({ error: "No se pudo procesar el pedido. Intentá de nuevo." });
+    }
   } finally {
     connection.release();
   }
@@ -103,6 +133,10 @@ router.get("/", requireAdmin, async (req, res) => {
 });
 
 router.patch("/:id/status", requireAdmin, async (req, res) => {
+  const allowedStatuses = ["Pendiente", "Pagado", "Enviado", "Entregado", "Cancelado"];
+  if (!allowedStatuses.includes(req.body.status)) {
+    return res.status(400).json({ error: "Estado de pedido inválido." });
+  }
   await pool.query("UPDATE orders SET status = ? WHERE id = ?", [req.body.status, req.params.id]);
   res.json({ ok: true });
 });

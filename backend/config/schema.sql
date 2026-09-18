@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS orders (
   payment VARCHAR(50),
   delivery_method VARCHAR(50),
   status VARCHAR(30) DEFAULT 'Pendiente',
-  mp_payment_id VARCHAR(100),
+  mp_payment_id VARCHAR(100) UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id)
 );

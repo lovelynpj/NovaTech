@@ -12,13 +12,32 @@ const router = express.Router();
 
 const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 
+// Función pura (sin red/DB) que decide si un pago de Mercado Pago realmente
+// corresponde al pedido que dice cubrir. Separada del handler del webhook
+// para poder testearla de forma aislada, sin necesitar la API real de MP.
+function paymentMatchesOrder(paymentInfo, order) {
+  if (!paymentInfo || !order) return false;
+  const isApproved = paymentInfo.status === "approved";
+  const paidAmount = Number(paymentInfo.transaction_amount);
+  const expectedAmount = Number(order.total);
+  const amountMatches = Number.isFinite(paidAmount) && paidAmount === expectedAmount;
+  const currencyMatches = !paymentInfo.currency_id || paymentInfo.currency_id === "ARS";
+  return isApproved && amountMatches && currencyMatches;
+}
+
 // Crea el link de pago para un pedido ya existente en nuestra base.
 router.post("/create-preference", async (req, res) => {
   const { orderId } = req.body;
+  if (!orderId || typeof orderId !== "string") {
+    return res.status(400).json({ error: "Falta el identificador del pedido." });
+  }
 
   const [orders] = await pool.query("SELECT * FROM orders WHERE id = ?", [orderId]);
   const order = orders[0];
   if (!order) return res.status(404).json({ error: "Pedido no encontrado." });
+  if (order.status === "Pagado") {
+    return res.status(400).json({ error: "Este pedido ya fue pagado." });
+  }
 
   const [items] = await pool.query("SELECT * FROM order_items WHERE order_id = ?", [orderId]);
 
@@ -51,21 +70,60 @@ router.post("/create-preference", async (req, res) => {
 
 // Mercado Pago llama a esta URL solo, cuando cambia el estado de un pago.
 // Acá NO confiamos en nada que mande el navegador del comprador: le
-// preguntamos directamente a Mercado Pago cuál es el estado real del pago.
+// preguntamos directamente a Mercado Pago (payment.get) cuál es el estado
+// real del pago, y ahora ADEMÁS verificamos que:
+//   - el pedido exista en nuestra base,
+//   - no esté ya marcado como "Pagado" con ese mismo payment_id (evita
+//     reprocesar el mismo webhook dos veces — MP puede reenviar notificaciones),
+//   - el monto pagado coincida EXACTO con el total del pedido,
+//   - la moneda sea ARS,
+//   - el estado sea realmente "approved".
+// Antes, cualquiera de estas condiciones podía faltar: bastaba con que
+// "info.status === 'approved'" para marcar el pedido como pagado, sin mirar
+// el monto — un pago aprobado por $1 podía marcar como pagado un pedido de
+// $500.000 si alguien lograba enviar una notificación de webhook falsa con
+// un payment_id de un pago real (pero de otro monto) a nuestro endpoint.
 router.post("/webhook", async (req, res) => {
   try {
-    const paymentId = req.query.id || req.body?.data?.id;
+    const paymentId = req.query.id || req.query["data.id"] || req.body?.data?.id;
     if (!paymentId) return res.sendStatus(200);
 
     const payment = new Payment(client);
     const info = await payment.get({ id: paymentId });
 
-    if (info.status === "approved") {
-      const orderId = info.external_reference;
-      await pool.query("UPDATE orders SET status = 'Pagado', mp_payment_id = ? WHERE id = ?", [
-        paymentId, orderId,
-      ]);
+    const orderId = info.external_reference;
+    if (!orderId) return res.sendStatus(200);
+
+    const [orders] = await pool.query("SELECT * FROM orders WHERE id = ?", [orderId]);
+    const order = orders[0];
+    if (!order) {
+      console.warn(`Webhook MP: pedido ${orderId} no existe en la base. Ignorado.`);
+      return res.sendStatus(200);
     }
+
+    // Idempotencia: si este mismo pago ya fue el que marcó el pedido como
+    // pagado, no reprocesamos (evita doble notificación de MP duplicando efectos).
+    if (order.status === "Pagado" && order.mp_payment_id === String(paymentId)) {
+      return res.sendStatus(200);
+    }
+    if (order.status === "Pagado") {
+      // El pedido ya está pagado con OTRO payment_id: no lo tocamos.
+      return res.sendStatus(200);
+    }
+
+    if (paymentMatchesOrder(info, order)) {
+      // El "AND status <> 'Pagado'" es una segunda barrera de idempotencia a
+      // nivel SQL, por si dos notificaciones llegan casi en simultáneo.
+      await pool.query(
+        "UPDATE orders SET status = 'Pagado', mp_payment_id = ? WHERE id = ? AND status <> 'Pagado'",
+        [String(paymentId), orderId]
+      );
+    } else {
+      console.warn(
+        `Webhook MP ignorado para pedido ${orderId}: status=${info.status} monto_pagado=${info.transaction_amount} monto_esperado=${order.total} moneda=${info.currency_id}`
+      );
+    }
+
     res.sendStatus(200);
   } catch (err) {
     console.error("Error procesando webhook de MP:", err);
@@ -74,3 +132,4 @@ router.post("/webhook", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.paymentMatchesOrder = paymentMatchesOrder;
